@@ -5,6 +5,96 @@ import { Request, Response } from 'express';
 
 export const router = express.Router();
 
+// get data for edit question
+router.get("/data/question/:id", (req, res) => {
+  const { id } = req.params;
+  const sql = `SELECT 
+    question.id, 
+    question.uid,
+    question.descriptions
+  FROM users, question
+  WHERE users.uid = question.uid
+  AND question.id = ?`;
+
+  conn.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error("SQL Error:", err);
+      return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
+    }
+
+    res.json({ status: true, data: result });
+  });
+});
+
+
+// get data for edit review
+router.get("/data/:pid", (req, res) => {
+  const { pid } = req.params;
+  const sql = `SELECT 
+    review.pid, 
+    review.uid,
+    review.rate, 
+    review.descriptions
+  FROM users, review
+  WHERE users.uid = review.uid
+  AND review.pid = ?
+  AND review.showpost = 1`;
+
+  conn.query(sql, [pid], (err, result) => {
+    if (err) {
+      console.error("SQL Error:", err);
+      return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
+    }
+
+    res.json({ status: true, data: result });
+  });
+});
+
+
+router.get('/question/date/:uid', (req: Request, res: Response): void => {
+    let uid = req.params.uid;
+    const sql = `
+      SELECT 
+        question.id,
+        question.uid,
+        question.date,
+        question.descriptions,
+        users.name,
+        users.profile,
+        IF(favorite_question.uid IS NOT NULL, true, false) AS is_saved
+
+      FROM question
+      INNER JOIN users ON users.uid = question.uid
+      LEFT JOIN favorite_question 
+        ON favorite_question.pid = question.id 
+        AND favorite_question.uid = ?
+
+      WHERE question.open = 1
+      ORDER BY question.date DESC
+    `;
+
+    conn.query(sql, [uid], (err, result: any) => {
+        if (err) {
+            res.status(500).json({ status: false, message: "เกิดข้อผิดพลาดในระบบ" });
+            return;
+        }
+        
+        if (result.length === 0) {
+            res.status(200).json({ 
+                status: true, 
+                result: [],
+                message: "ยังไม่มีคำถาม" 
+            });
+            return;
+        }
+        res.status(200).json({
+            status: true,
+            result: result
+        });
+    });
+});
+
+
 router.get('/review/date/:subid/:uid?', (req: Request, res: Response): void => {
   const subid = req.params.subid;
   const uid = req.params.uid;
@@ -125,100 +215,3 @@ router.get('/review/like/:subid/:uid?', (req: Request, res: Response): void => {
     });
   });
 });
-
-
-// get data for edit review
-router.get("/data/:pid", (req, res) => {
-  const { pid } = req.params;
-  const sql = `SELECT 
-    review.pid, 
-    review.uid,
-    review.rate, 
-    review.descriptions
-  FROM users, review
-  WHERE users.uid = review.uid
-  AND review.pid = ?
-  AND review.showpost = 1`;
-
-  conn.query(sql, [pid], (err, result) => {
-    if (err) {
-      console.error("SQL Error:", err);
-      return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-    }
-
-    res.json({ status: true, data: result });
-  });
-});
-
-
-// get data for edit question
-router.get("/data/question/:id", (req, res) => {
-  const { id } = req.params;
-  const sql = `SELECT 
-    question.id, 
-    question.uid,
-    question.descriptions
-  FROM users, question
-  WHERE users.uid = question.uid
-  AND question.id = ?`;
-
-  conn.query(sql, [id], (err, result) => {
-    if (err) {
-      console.error("SQL Error:", err);
-      return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-    }
-
-    res.json({ status: true, data: result });
-  });
-});
-
-
-
-
-
-
-// ---ยังไม่เรียกใช้โดยตรง
-router.get('/question/date/:uid', (req: Request, res: Response): void => {
-    let uid = req.params.uid;
-    const sql = `
-      SELECT 
-        question.id,
-        question.uid,
-        question.date,
-        question.descriptions,
-        users.name,
-        users.profile,
-        IF(favorite_question.uid IS NOT NULL, true, false) AS is_saved
-
-      FROM question
-      INNER JOIN users ON users.uid = question.uid
-      LEFT JOIN favorite_question 
-        ON favorite_question.pid = question.id 
-        AND favorite_question.uid = ?
-
-      WHERE question.open = 1
-      ORDER BY question.date DESC
-    `;
-
-    conn.query(sql, [uid], (err, result: any) => {
-        if (err) {
-            res.status(500).json({ status: false, message: "เกิดข้อผิดพลาดในระบบ" });
-            return;
-        }
-        
-        if (result.length === 0) {
-            res.status(200).json({ 
-                status: true, 
-                result: [],
-                message: "ยังไม่มีคำถาม" 
-            });
-            return;
-        }
-        res.status(200).json({
-            status: true,
-            result: result
-        });
-    });
-});
-
-

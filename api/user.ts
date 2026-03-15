@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
 export const router = express.Router();
-import { OtpService } from '../service/otp.service'; // ปรับ path ให้ตรง
+import { OtpService } from '../service/otp.service';
 import jwt from "jsonwebtoken";
 import { UpdateUserRequest } from "../request/userReq";
 
@@ -118,93 +118,8 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     });
   });
 });
-router.put("/update-user/:uid", async (req: Request, res: Response) => {
-  const uid = req.params.uid;
-  const body: UpdateUserRequest = req.body;
 
-  // เช็คว่า field บังคับมีค่าไหม
-  if (!body.name || !body.email) {
-    res.status(400).json({ status: false, message: "กรุณากรอกข้อมูลให้ครบ" });
-    return;
-  }
 
-  try {
-    const checkSql = `SELECT uid FROM users WHERE name = ? AND uid != ?`;
-    conn.query(checkSql, [body.name, uid], async (err, results: any) => {
-      if (err) {
-        res.status(500).json({ status: false, message: "Server Error" });
-        return;
-      }
-      
-      if (results.length > 0) {
-        res.json({ status: false, message: "ชื่อผู้ใช้ซ้ำ" });
-        return;
-      }
-
-      // ดึงข้อมูลเดิมมาก่อน เผื่อ field ไหนไม่ได้ส่งมาจะใช้ค่าเดิม และเพื่อดึง password เดิมมาเช็ค
-      const getOldDataSql = "SELECT name, email, anonymous_name, profile, password FROM users WHERE uid = ?";
-      conn.query(getOldDataSql, [uid], async (err, oldData: any) => {
-        if (err || oldData.length === 0) {
-          res.status(500).json({ status: false, message: "ไม่พบข้อมูลผู้ใช้" });
-          return;
-        }
-
-        const old = oldData[0];
-
-        let sql = `UPDATE users SET name = ?, email = ?, anonymous_name = ?`;
-        const params: any[] = [
-          body.name || old.name,                       // ถ้าไม่ส่งมาใช้ค่าเดิม
-          body.email || old.email,
-          body.anonymous_name || old.anonymous_name,
-        ];
-
-        if (body.profile && body.profile.startsWith('http')) {
-          sql += `, profile = ?`;
-          params.push(body.profile);
-        }
-
-        if (body.password) {
-          if (!body.oldPassword) {
-            res.status(400).json({ status: false, message: "กรุณากรอกรหัสผ่านเดิม" });
-            return;
-          }
-
-          let isMatch = false;
-          const dbPassword = old.password;
-          const isHashed = dbPassword.startsWith('$2b$') || dbPassword.startsWith('$2a$');
-
-          if (isHashed) {
-            isMatch = await bcrypt.compare(body.oldPassword, dbPassword);
-          } else {
-            isMatch = body.oldPassword === dbPassword;
-          }
-
-          if (!isMatch) {
-            res.status(400).json({ status: false, message: "รหัสผ่านเดิมไม่ถูกต้อง" });
-            return;
-          }
-
-          const hashedPassword = await bcrypt.hash(body.password, 10);
-          sql += `, password = ?`;
-          params.push(hashedPassword);
-        }
-
-        sql += ` WHERE uid = ?`;
-        params.push(uid);
-
-        conn.query(sql, params, (err, result) => {
-          if (err) {
-            res.status(500).json({ status: false, message: "แก้ไขไม่สำเร็จ" });
-            return;
-          }
-          res.json({ status: true, message: "อัปเดตโปรไฟล์สำเร็จ" });
-        });
-      });
-    });
-  } catch (error) {
-    res.status(500).json({ status: false, message: "Hash error" });
-  }
-});
 //Check emil if user forgot password.
 router.get("/checkemail", async (req: Request, res: Response): Promise<void> => {
   const { email } = req.query;
@@ -230,6 +145,7 @@ router.get("/checkemail", async (req: Request, res: Response): Promise<void> => 
       });
   });
 });
+
 
 router.post("/request-otp", async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body;
@@ -356,6 +272,8 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
   }
 });
 
+
+
 router.post("/reset-password", async (req: Request, res: Response): Promise<void> => {
   const { resetToken, newPassword } = req.body;
 
@@ -401,22 +319,94 @@ router.post("/reset-password", async (req: Request, res: Response): Promise<void
   }
 });
 
-//Get my profile.
-router.get("/myprofile/:uid", (req, res) => {
+
+
+router.put("/update-user/:uid", async (req: Request, res: Response) => {
   const uid = req.params.uid;
-  const sql = `SELECT uid, name, profile, email
-  FROM users
-  WHERE uid = ?`;
-  conn.query(sql, [uid], (err, result) => {
-    if (err) {
-      console.error("SQL Error:", err);
-      return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-    }
-    if (result.length === 0) {
-      return res.status(200).json({ status: true, data: [], message: "ไม่พบผู้ใช้" });
-    }
-    res.status(200).json({ status: true, data: result[0] });
-  });
+  const body: UpdateUserRequest = req.body;
+
+  // เช็คว่า field บังคับมีค่าไหม
+  if (!body.name || !body.email) {
+    res.status(400).json({ status: false, message: "กรุณากรอกข้อมูลให้ครบ" });
+    return;
+  }
+
+  try {
+    const checkSql = `SELECT uid FROM users WHERE name = ? AND uid != ?`;
+    conn.query(checkSql, [body.name, uid], async (err, results: any) => {
+      if (err) {
+        res.status(500).json({ status: false, message: "Server Error" });
+        return;
+      }
+      
+      if (results.length > 0) {
+        res.json({ status: false, message: "ชื่อผู้ใช้ซ้ำ" });
+        return;
+      }
+
+      // ดึงข้อมูลเดิมมาก่อน เผื่อ field ไหนไม่ได้ส่งมาจะใช้ค่าเดิม และเพื่อดึง password เดิมมาเช็ค
+      const getOldDataSql = "SELECT name, email, anonymous_name, profile, password FROM users WHERE uid = ?";
+      conn.query(getOldDataSql, [uid], async (err, oldData: any) => {
+        if (err || oldData.length === 0) {
+          res.status(500).json({ status: false, message: "ไม่พบข้อมูลผู้ใช้" });
+          return;
+        }
+
+        const old = oldData[0];
+
+        let sql = `UPDATE users SET name = ?, email = ?, anonymous_name = ?`;
+        const params: any[] = [
+          body.name || old.name,                       // ถ้าไม่ส่งมาใช้ค่าเดิม
+          body.email || old.email,
+          body.anonymous_name || old.anonymous_name,
+        ];
+
+        if (body.profile && body.profile.startsWith('http')) {
+          sql += `, profile = ?`;
+          params.push(body.profile);
+        }
+
+        if (body.password) {
+          if (!body.oldPassword) {
+            res.status(400).json({ status: false, message: "กรุณากรอกรหัสผ่านเดิม" });
+            return;
+          }
+
+          let isMatch = false;
+          const dbPassword = old.password;
+          const isHashed = dbPassword.startsWith('$2b$') || dbPassword.startsWith('$2a$');
+
+          if (isHashed) {
+            isMatch = await bcrypt.compare(body.oldPassword, dbPassword);
+          } else {
+            isMatch = body.oldPassword === dbPassword;
+          }
+
+          if (!isMatch) {
+            res.status(400).json({ status: false, message: "รหัสผ่านเดิมไม่ถูกต้อง" });
+            return;
+          }
+
+          const hashedPassword = await bcrypt.hash(body.password, 10);
+          sql += `, password = ?`;
+          params.push(hashedPassword);
+        }
+
+        sql += ` WHERE uid = ?`;
+        params.push(uid);
+
+        conn.query(sql, params, (err, result) => {
+          if (err) {
+            res.status(500).json({ status: false, message: "แก้ไขไม่สำเร็จ" });
+            return;
+          }
+          res.json({ status: true, message: "อัปเดตโปรไฟล์สำเร็จ" });
+        });
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ status: false, message: "Hash error" });
+  }
 });
 
 
@@ -438,43 +428,7 @@ router.get("/myprofile/:uid", (req, res) => {
       });
   });  
 
-  // Get my review.
-  router.get("/getmyreview/:uid", (req, res) => {
-      const uid = req.params.uid;
-      const sql = `SELECT review.pid, subject.subcode, review.date
-      FROM review
-      JOIN subject
-      WHERE review.sid = subject.subid
-      AND review.showpost = 1
-      AND review.uid = ?`;
-      conn.query(sql, [uid], (err, result) => {
-        if (err) {
-          console.error("SQL Error:", err);
-          return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-        }
-        if (result.length === 0) {
-          return res.status(200).json({ status: true, data: [], message: "ผู้ใช้คนนี้ไม่เคยรีวิวรายวิชา" });
-        }
-        res.json({ status: true, data: result });
-      });
-  });
-// Get my question.
-    router.get("/getmyquestion/:uid", (req, res) => {
-      const uid = req.params.uid;
-      const sql = `SELECT question.id, question.date
-      FROM question
-      WHERE question.uid = ?`;
-      conn.query(sql, [uid], (err, result) => {
-        if (err) {
-          console.error("SQL Error:", err);
-          return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-        }
-        if (result.length === 0) {
-          return res.status(200).json({ status: true, data: [], message: "ผู้ใช้คนนี้ไม่เคยรีวิวรายวิชา" });
-        }
-        res.json({ status: true, data: result });
-      });
-  });
+
 
 // Get other user Reviews.
   router.get("/getuser/review/:uid", (req, res) => {
@@ -517,5 +471,64 @@ router.get("/myprofile/:uid", (req, res) => {
         res.json({ status: true, data: result });
       });
   });  
+
+  
+//Get my profile.
+router.get("/myprofile/:uid", (req, res) => {
+  const uid = req.params.uid;
+  const sql = `SELECT uid, name, profile, email
+  FROM users
+  WHERE uid = ?`;
+  conn.query(sql, [uid], (err, result) => {
+    if (err) {
+      console.error("SQL Error:", err);
+      return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
+    }
+    if (result.length === 0) {
+      return res.status(200).json({ status: true, data: [], message: "ไม่พบผู้ใช้" });
+    }
+    res.status(200).json({ status: true, data: result[0] });
+  });
+});
+
+
+  // Get my review.
+  router.get("/getmyreview/:uid", (req, res) => {
+      const uid = req.params.uid;
+      const sql = `SELECT review.pid, subject.subcode, review.date
+      FROM review
+      JOIN subject
+      WHERE review.sid = subject.subid
+      AND review.showpost = 1
+      AND review.uid = ?`;
+      conn.query(sql, [uid], (err, result) => {
+        if (err) {
+          console.error("SQL Error:", err);
+          return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
+        }
+        if (result.length === 0) {
+          return res.status(200).json({ status: true, data: [], message: "ผู้ใช้คนนี้ไม่เคยรีวิวรายวิชา" });
+        }
+        res.json({ status: true, data: result });
+      });
+  });
+// Get my question.
+    router.get("/getmyquestion/:uid", (req, res) => {
+      const uid = req.params.uid;
+      const sql = `SELECT question.id, question.date
+      FROM question
+      WHERE question.uid = ?`;
+      conn.query(sql, [uid], (err, result) => {
+        if (err) {
+          console.error("SQL Error:", err);
+          return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
+        }
+        if (result.length === 0) {
+          return res.status(200).json({ status: true, data: [], message: "ผู้ใช้คนนี้ไม่เคยรีวิวรายวิชา" });
+        }
+        res.json({ status: true, data: result });
+      });
+  });
+
   
 
