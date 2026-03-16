@@ -1,4 +1,4 @@
-import express from "express";
+import express, { NextFunction } from "express";
 import { conn } from "../db"; 
 import mysql from "mysql2";
 import { Router, Request, Response } from 'express';
@@ -11,6 +11,34 @@ import jwt from "jsonwebtoken";
 import { UpdateUserRequest } from "../request/userReq";
 
 const otpService = new OtpService(); 
+
+// middleware/checkSuspended.ts
+export const checkSuspended = (req: Request, res: Response, next: NextFunction): void => {
+  // ดึง uid จากทุกที่ที่เป็นไปได้
+  const uid = req.params.uid 
+    || req.params.userId
+    || req.body.uid 
+    || req.headers['x-uid'] as string;
+      console.log('checkSuspended uid:', uid); // ดูว่าได้ uid มาไหม
+  console.log('params:', req.params);
+  console.log('body:', req.body);
+  console.log('headers x-uid:', req.headers['x-uid']);
+
+  if (!uid) return next(); // ถ้าไม่มี uid เลยให้ผ่าน
+
+  conn.query(`SELECT type FROM users WHERE uid = ?`, [uid], (err, result: any) => {
+    if (err || !result.length) return next();
+
+    if (result[0].type === 2) {
+      res.status(403).json({ status: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
+      return;
+    }
+    next();
+  });
+};
+
+router.use(checkSuspended); 
+
 //Web REgister.
 router.post("/register", (req: Request, res: Response) => {
   const { name, email, password, anonymous_name, type } = req.body;
@@ -105,20 +133,40 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    if (!isMatch) {
-      res.status(200).json({ status: false, message: "อีเมล์หรือรหัสผ่านไม่ถูกต้อง!" });
-      return;
-    }
+if (!isMatch) {
+  res.status(200).json({ status: false, message: "อีเมล์หรือรหัสผ่านไม่ถูกต้อง!" });
+  return;
+}
 
-    res.status(201).json({
-      status: true,
-      message: "เข้าสู่ระบบสำเร็จ!",
-      uid: result[0].uid,
-      type: result[0].type,
-    });
+// เช็คก่อน login สำเร็จ
+if (result[0].type === 2) {
+  res.status(200).json({ status: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
+  return;
+}
+
+res.status(201).json({
+  status: true,
+  message: "เข้าสู่ระบบสำเร็จ!",
+  uid: result[0].uid,
+  type: result[0].type,
+});
   });
 });
+router.get('/check-status/:uid', (req, res) => {
+  const { uid } = req.params;
 
+  conn.query(
+    `SELECT type FROM users WHERE uid = ?`,
+    [uid],
+    (err: any, result: any) => {
+      if (err || !result.length) {
+        res.status(500).json({ status: false });
+        return;
+      }
+      res.json({ status: true, type: result[0].type });
+    }
+  );
+});
 
 //Check emil if user forgot password.
 router.get("/checkemail", async (req: Request, res: Response): Promise<void> => {
@@ -156,16 +204,14 @@ router.post("/request-otp", async (req: Request, res: Response): Promise<void> =
   }
 
   try {
+    
     // 1. เช็ค rate limit
     const result: any = await new Promise((resolve, reject) => {
       conn.query(
         "SELECT otp_requested_at FROM users WHERE email = ?",
         [email],
         (err, result) => {
-          if (err) {
-            console.error("Query Error:", err);
-            return reject(err);
-          }
+          if (err) return reject(err);
           resolve(result);
         }
       );
@@ -179,34 +225,30 @@ router.post("/request-otp", async (req: Request, res: Response): Promise<void> =
     const lastRequest = result[0].otp_requested_at;
     if (lastRequest) {
       const diff = (Date.now() - new Date(lastRequest).getTime()) / 1000;
-      if (diff < 30) {
+      if (diff < 60) {
         res.status(429).json({
           status: false,
-          message: `กรุณารออีก ${Math.max(1, Math.ceil(30 - diff))} วินาที`
+          message: `กรุณารอ ${Math.ceil(60 - diff)} วินาที`
         });
         return;
       }
     }
 
     // 2. Generate + Hash OTP
-    console.log("Generating OTP for:", email);
     const otp = otpService.generateOtp();
     const hashedOtp = await bcrypt.hash(otp, 10);
 
     // 3. บันทึกลง DB
-    console.log("Saving OTP to DB...");
     await otpService.saveOtp(email, hashedOtp);
 
     // 4. ส่งอีเมล
-    console.log("Sending OTP email...");
     await otpService.sendOtpEmail(email, otp);
 
-    console.log("OTP sent successfully!");
     res.json({ status: true, message: "ส่ง OTP ไปยังอีเมลแล้ว" });
 
-  } catch (error: any) {
-    console.error("OTP Request Error:", error);
-    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด: " + (error.message || error) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
   }
 });
 
@@ -273,9 +315,9 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
 
     res.json({ status: true, resetToken });
 
-  } catch (error: any) {
-    console.error("OTP Request Error:", error);
-    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด: " + (error.message || error) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
   }
 });
 
@@ -328,7 +370,7 @@ router.post("/reset-password", async (req: Request, res: Response): Promise<void
 
 
 
-router.put("/update-user/:uid", async (req: Request, res: Response) => {
+router.put("/update-user/:uid",checkSuspended, async  (req: Request, res: Response) => {
   const uid = req.params.uid;
   const body: UpdateUserRequest = req.body;
 
@@ -434,6 +476,7 @@ router.put("/update-user/:uid", async (req: Request, res: Response) => {
         res.json({ status: true, data: result });
       });
   });  
+ 
 
 
 

@@ -1,13 +1,35 @@
-import express from "express";
+import express, { NextFunction } from "express";
 import { conn } from "../db";
 import mysql from "mysql2";
 import { Router, Request, Response } from 'express';
 import { pid } from "process";
 
 export const router = express.Router();
+// middleware/checkSuspended.ts
+export const checkSuspended = (req: Request, res: Response, next: NextFunction): void => {
+  // ดึง uid จากทุกที่ที่เป็นไปได้
+  const uid = req.params.uid 
+    || req.params.userId
+    || req.body.uid 
+    || req.headers['x-uid'] as string;
+    
+
+  if (!uid) return next(); // ถ้าไม่มี uid เลยให้ผ่าน
+
+  conn.query(`SELECT type FROM users WHERE uid = ?`, [uid], (err, result: any) => {
+    if (err || !result.length) return next();
+
+    if (result[0].type === 2) {
+      res.status(403).json({ status: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
+      return;
+    }
+    next();
+  });
+};
+
 
 // Update Like amount.
-router.post("/like", (req: Request, res: Response): void => {
+router.post("/like", checkSuspended, (req: Request, res: Response): void => {
   const { uid, reviewID } = req.body;
 
   if (!uid || !reviewID) {
@@ -78,9 +100,9 @@ router.post("/like", (req: Request, res: Response): void => {
 
 
 // Update review
-router.put("/review", (req: Request, res: Response): void => {
-  const { descriptions, rate, pid } = req.body;
-  if (!pid || !descriptions || !rate) {
+router.put("/review", checkSuspended, (req: Request, res: Response): void => {
+  const { descriptions, rate, pid, uid } = req.body;
+  if (!pid || !descriptions || !rate || !uid) {
     res.status(400).json({
       status: false,
       message: "ข้อมูลไม่ครบถ้วน",
@@ -119,9 +141,9 @@ router.put("/review", (req: Request, res: Response): void => {
 });
 
 // Update question
-router.put("/question", (req: Request, res: Response): void => {
-  const { descriptions, questionID } = req.body;
-  if (!pid || !descriptions) {
+router.put("/question", checkSuspended, (req: Request, res: Response): void => {
+  const { uid, descriptions, questionID } = req.body;
+  if (!questionID || !descriptions || !uid) {
     res.status(400).json({
       status: false,
       message: "ข้อมูลไม่ครบถ้วน",

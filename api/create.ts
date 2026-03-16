@@ -1,10 +1,31 @@
-import express from "express";
+import express, { NextFunction } from "express";
 import { conn } from "../db";
 import { Request, Response } from 'express';
 export const router = express.Router();
 
+
+// middleware/checkSuspended.ts
+export const checkSuspended = (req: Request, res: Response, next: NextFunction): void => {
+  // ดึง uid จากทุกที่ที่เป็นไปได้
+  const uid = req.params.uid 
+    || req.params.userId
+    || req.body.uid 
+    || req.headers['x-uid'] as string;
+
+  if (!uid) return next(); // ถ้าไม่มี uid เลยให้ผ่าน
+
+  conn.query(`SELECT type FROM users WHERE uid = ?`, [uid], (err, result: any) => {
+    if (err || !result.length) return next();
+
+    if (result[0].type === 2) {
+      res.status(403).json({ status: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
+      return;
+    }
+    next();
+  });
+};
 // Create review.
-router.post("/review", (req: Request, res: Response): void => {
+router.post("/review", checkSuspended, (req: Request, res: Response): void => {
   const {
     sid, uid, rate, descriptions, anonymous_type, showpost
   } = req.body;
@@ -60,7 +81,7 @@ router.post("/review", (req: Request, res: Response): void => {
 });
 
 // Create question.
-router.post("/question", (req: Request, res: Response): void => {
+router.post("/question", checkSuspended, (req: Request, res: Response): void => {
   const {
     uid, descriptions
   } = req.body;
@@ -116,7 +137,7 @@ router.post("/question", (req: Request, res: Response): void => {
 });
 
 //Create comments (Review)
-router.post("/comment/review", (req: Request, res: Response): void => {
+router.post("/comment/review", checkSuspended, (req: Request, res: Response): void => {
   const { uid, type, descriptions, reviewID } = req.body;
 
   if (!uid || !type || !descriptions || !reviewID) {
@@ -241,7 +262,7 @@ router.post("/comment/review", (req: Request, res: Response): void => {
 
 
 //Create Replies (Review)
-router.post("/comment/reply/review", (req: Request, res: Response): void => {
+router.post("/comment/reply/review", checkSuspended, (req: Request, res: Response): void => {
   const { uid, type, descriptions, reviewID, replies_to_id } = req.body;
 
   if (!uid || !type || !descriptions || !reviewID || !replies_to_id) {
@@ -366,7 +387,7 @@ router.post("/comment/reply/review", (req: Request, res: Response): void => {
 
 
 //Create comments (Question)
-router.post("/comment/question", (req: Request, res: Response): void => {
+router.post("/comment/question", checkSuspended, (req: Request, res: Response): void => {
   const { uid, type, descriptions, questionID } = req.body;
 
   if (!uid || !type || !descriptions || !questionID) {
@@ -492,7 +513,7 @@ router.post("/comment/question", (req: Request, res: Response): void => {
 
 
 //Create Replies (question)
-router.post("/comment/reply/question", (req: Request, res: Response): void => {
+router.post("/comment/reply/question", checkSuspended, (req: Request, res: Response): void => {
   const { uid, type, descriptions, questionID, replies_to_id } = req.body;
 
   if (!uid || !type || !descriptions || !questionID || !replies_to_id) {

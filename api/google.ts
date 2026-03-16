@@ -126,6 +126,12 @@ router.post("/login/google", async (req: Request, res: Response): Promise<void> 
                     const user = result[0];
                     const jwtToken = createJwtToken(user.uid);
 
+                    // เช็คก่อน login สำเร็จ
+                    if (result[0].type === 2) {
+                        res.status(200).json({ success: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
+                        return;
+                    }
+
                     res.json({
                         success: true,
                         message: "เข้าสู่ระบบสำเร็จ",

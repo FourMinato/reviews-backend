@@ -11,11 +11,6 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-app.get('/', (req, res) => {
-    res.status(200).send("Server is awake!");
-});
-
-
 import { router as user } from "./api/user";
 import { router as subject } from "./api/subject";
 import { router as review } from "./api/review";

@@ -1,11 +1,31 @@
-import express from "express";
+import express, { NextFunction } from "express";
 import { conn } from "../db";
 import { Request, Response } from 'express';
 export const router = express.Router();
+// middleware/checkSuspended.ts
+export const checkSuspended = (req: Request, res: Response, next: NextFunction): void => {
+  // ดึง uid จากทุกที่ที่เป็นไปได้
+  const uid = req.params.uid 
+    || req.params.userId
+    || req.body.uid 
+    || req.headers['x-uid'] as string;
+    
 
+  if (!uid) return next(); // ถ้าไม่มี uid เลยให้ผ่าน
+
+  conn.query(`SELECT type FROM users WHERE uid = ?`, [uid], (err, result: any) => {
+    if (err || !result.length) return next();
+
+    if (result[0].type === 2) {
+      res.status(403).json({ status: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
+      return;
+    }
+    next();
+  });
+};
 
 // favorite review.
-router.post("/review", (req: Request, res: Response): void => {
+router.post("/review", checkSuspended, (req: Request, res: Response): void => {
   const { uid, reviewID } = req.body;
 
   if (!uid || !reviewID) {
@@ -56,7 +76,7 @@ router.post("/review", (req: Request, res: Response): void => {
 });
 
 // favorite question.
-router.post("/question", (req: Request, res: Response): void => {
+router.post("/question", checkSuspended, (req: Request, res: Response): void => {
   const { uid, questionID } = req.body;
 
   if (!uid || !questionID) {

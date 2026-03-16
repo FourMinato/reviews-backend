@@ -1,12 +1,32 @@
-import express from "express";
+import express, { NextFunction } from "express";
 import { conn } from "../db";
 import mysql from "mysql2";
 import { Router, Request, Response } from 'express';
 
 export const router = express.Router();
+// middleware/checkSuspended.ts
+export const checkSuspended = (req: Request, res: Response, next: NextFunction): void => {
+  // ดึง uid จากทุกที่ที่เป็นไปได้
+  const uid = req.params.uid 
+    || req.params.userId
+    || req.body.uid 
+    || req.headers['x-uid'] as string;
+    
 
+  if (!uid) return next(); // ถ้าไม่มี uid เลยให้ผ่าน
+
+  conn.query(`SELECT type FROM users WHERE uid = ?`, [uid], (err, result: any) => {
+    if (err || !result.length) return next();
+
+    if (result[0].type === 2) {
+      res.status(403).json({ status: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
+      return;
+    }
+    next();
+  });
+};
 // report post reviews
-router.post("/review", (req: Request, res: Response): void => {
+router.post("/review", checkSuspended, (req: Request, res: Response): void => {
   const { reviewID, uid } = req.body;
   if (!reviewID || !uid) {
     res.status(400).json({ status: false, message: "ข้อมูลไม่ครบถ้วน" });
@@ -86,7 +106,7 @@ router.post("/review", (req: Request, res: Response): void => {
 });
 
 // report post question
-router.post("/question", (req: Request, res: Response): void => {
+router.post("/question", checkSuspended, (req: Request, res: Response): void => {
   const { questionID, uid } = req.body;
   if (!questionID || !uid) {
     res.status(400).json({ status: false, message: "ข้อมูลไม่ครบถ้วน" });
@@ -165,7 +185,7 @@ router.post("/question", (req: Request, res: Response): void => {
 });
 
 // report comments
-router.post("/comment", (req: Request, res: Response): void => {
+router.post("/comment", checkSuspended, (req: Request, res: Response): void => {
   const { commentID, uid } = req.body;
   if (!commentID || !uid) {
     res.status(400).json({ status: false, message: "ข้อมูลไม่ครบถ้วน" });

@@ -1,8 +1,29 @@
-import express from "express";
+import express, { NextFunction } from "express";
 import { conn } from "../db";
 import { Request, Response } from 'express';
 export const router = express.Router();
 
+
+// middleware/checkSuspended.ts
+export const checkSuspended = (req: Request, res: Response, next: NextFunction): void => {
+  // ดึง uid จากทุกที่ที่เป็นไปได้
+  const uid = req.params.uid 
+    || req.params.userId
+    || req.body.uid 
+    || req.headers['x-uid'] as string;
+
+  if (!uid) return next(); // ถ้าไม่มี uid เลยให้ผ่าน
+
+  conn.query(`SELECT type FROM users WHERE uid = ?`, [uid], (err, result: any) => {
+    if (err || !result.length) return next();
+
+    if (result[0].type === 2) {
+      res.status(403).json({ status: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
+      return;
+    }
+    next();
+  });
+};
 // Get notifications
 router.get("/notifications/:uid", (req: Request, res: Response): void => {
   const uid = req.params.uid;
@@ -65,10 +86,11 @@ router.patch("/notifications/:messageID/read", (req: Request, res: Response): vo
 
 
 // DELETE - ลบการแจ้งเตือนทีละรายการ
-router.delete("/notifications/:messageID", (req: Request, res: Response): void => {
+router.delete("/notifications/:messageID/:uid", checkSuspended, (req: Request, res: Response): void => {
   const messageID = req.params.messageID;
-
-  if (!messageID) {
+  const uid = req.params.uid;
+  
+  if (!messageID || !uid) {
     res.status(400).json({ status: false, message: "ข้อมูลไม่ครบ" });
     return;
   }

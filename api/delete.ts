@@ -22,7 +22,7 @@ router.delete("/subject/:subid", (req: Request, res: Response): void => {
     if (err) {
       res.status(500).json({ 
         status: false, 
-        message: "เกิดข้อผิดพลาดในการลบรายวิชา!" 
+        message: "มีรีวิวอยู่ในรายวิชาขณะนี้!" 
       });
       return;
     }
