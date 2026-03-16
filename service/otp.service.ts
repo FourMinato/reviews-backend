@@ -18,9 +18,14 @@ export class OtpService {
       SET otp_code = ?, otp_expires_at = ?, otp_requested_at = ? 
       WHERE email = ?
     `;
+    console.log("Saving OTP to DB for:", email);
     await new Promise<void>((resolve, reject) => {
       conn.query(updateOtp, [hashedOtp, expires, now, email], (err) => {
-        if (err) return reject(err);
+        if (err) {
+          console.error("DB Update Error (saveOtp):", err);
+          return reject(err);
+        }
+        console.log("OTP saved successfully to DB");
         resolve();
       });
     });
@@ -37,11 +42,13 @@ export class OtpService {
       },
     });
 
-await transporter.sendMail({
-  from: `"Review Realm" <${process.env.MAIL_USER}>`,
-  to: email,
-  subject: 'รหัส OTP สำหรับรีเซ็ตรหัสผ่าน',
-  html: `
+    console.log("Attempting to send OTP email to:", email);
+    try {
+      await transporter.sendMail({
+        from: `"Review Realm" <${process.env.MAIL_USER}>`,
+        to: email,
+        subject: 'รหัส OTP สำหรับรีเซ็ตรหัสผ่าน',
+        html: `
     <!DOCTYPE html>
     <html>
     <head>
@@ -102,6 +109,11 @@ await transporter.sendMail({
     </body>
     </html>
   `,
-});
+      });
+      console.log("Email sent successfully!");
+    } catch (err) {
+      console.error("Nodemailer Error:", err);
+      throw err;
+    }
   }
 }

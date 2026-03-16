@@ -162,7 +162,10 @@ router.post("/request-otp", async (req: Request, res: Response): Promise<void> =
         "SELECT otp_requested_at FROM users WHERE email = ?",
         [email],
         (err, result) => {
-          if (err) return reject(err);
+          if (err) {
+            console.error("Query Error:", err);
+            return reject(err);
+          }
           resolve(result);
         }
       );
@@ -186,20 +189,24 @@ router.post("/request-otp", async (req: Request, res: Response): Promise<void> =
     }
 
     // 2. Generate + Hash OTP
+    console.log("Generating OTP for:", email);
     const otp = otpService.generateOtp();
     const hashedOtp = await bcrypt.hash(otp, 10);
 
     // 3. บันทึกลง DB
+    console.log("Saving OTP to DB...");
     await otpService.saveOtp(email, hashedOtp);
 
     // 4. ส่งอีเมล
+    console.log("Sending OTP email...");
     await otpService.sendOtpEmail(email, otp);
 
+    console.log("OTP sent successfully!");
     res.json({ status: true, message: "ส่ง OTP ไปยังอีเมลแล้ว" });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
+  } catch (error: any) {
+    console.error("OTP Request Error:", error);
+    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด: " + (error.message || error) });
   }
 });
 
@@ -266,9 +273,9 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
 
     res.json({ status: true, resetToken });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
+  } catch (error: any) {
+    console.error("OTP Request Error:", error);
+    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด: " + (error.message || error) });
   }
 });
 
