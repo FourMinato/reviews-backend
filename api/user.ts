@@ -4,6 +4,7 @@ import mysql from "mysql2";
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { checkSuspended } from "../middleware/auth";
 
 export const router = express.Router();
 import { OtpService } from '../service/otp.service';
@@ -11,26 +12,6 @@ import jwt from "jsonwebtoken";
 import { UpdateUserRequest } from "../request/userReq";
 
 const otpService = new OtpService(); 
-
-// middleware/checkSuspended.ts
-export const checkSuspended = (req: Request, res: Response, next: NextFunction): void => {
-  // ดึง uid จากทุกที่ที่เป็นไปได้
-  const uid = req.params.uid 
-    || req.params.userId
-    || req.body.uid 
-    || req.headers['x-uid'] as string;
-  if (!uid) return next(); // ถ้าไม่มี uid เลยให้ผ่าน
-
-  conn.query(`SELECT type FROM users WHERE uid = ?`, [uid], (err, result: any) => {
-    if (err || !result.length) return next();
-
-    if (result[0].type === 2) {
-      res.status(403).json({ status: false, message: "บัญชีของคุณถูกระงับการใช้งาน" });
-      return;
-    }
-    next();
-  });
-};
 
 router.use(checkSuspended); 
 

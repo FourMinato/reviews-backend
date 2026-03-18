@@ -2,10 +2,11 @@ import express from "express";
 import { conn } from "../db"; 
 import mysql from "mysql2";
 import { Router, Request, Response } from 'express';
+import { checkAdmin } from "../middleware/auth";
 
 export const router = express.Router();
 
-router.post("/create/subject", (req: Request, res: Response): void => {
+router.post("/create/subject", checkAdmin, (req: Request, res: Response): void => {
   const { cateID, subcode, name } = req.body;
 
   if (!cateID || !subcode || !name) {
@@ -66,7 +67,7 @@ router.get('/data/:subcode', (req, res) => {
 });
 
 
-router.put("/update/subject/:subid", (req: Request, res: Response): void => {
+router.put("/update/subject/:subid", checkAdmin, (req: Request, res: Response): void => {
   const { subid } = req.params;
   const { category, subcode, subname, open } = req.body;
 

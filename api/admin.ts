@@ -1,7 +1,11 @@
 import express, { Request, Response } from "express";
 import { conn } from "../db";
+import { checkAdmin } from "../middleware/auth";
 
 export const router = express.Router();
+
+// Apply admin check to all routes in this file
+router.use(checkAdmin);
 
 // 1. Get Reported Reviews (Aggregated)
 router.get('/get-report-review', (_req: Request, res: Response) => {

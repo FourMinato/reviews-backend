@@ -1,10 +1,11 @@
 import express from "express";
 import { conn } from "../db";
 import { Request, Response } from 'express';
+import { checkAdmin } from "../middleware/auth";
 export const router = express.Router();
 
 // Admin delete subject
-router.delete("/subject/:subid", (req: Request, res: Response): void => {
+router.delete("/subject/:subid", checkAdmin, (req: Request, res: Response): void => {
   const subid = req.params.subid;
 
   if (!subid) {
