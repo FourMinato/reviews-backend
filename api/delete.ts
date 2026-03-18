@@ -20,7 +20,7 @@ router.delete("/subject/:subid", (req: Request, res: Response): void => {
   
   conn.query(deleteSubject, [subid], (err, result: any) => {
     if (err) {
-      res.status(500).json({ 
+      res.status(200).json({ 
         status: false, 
         message: "มีรีวิวอยู่ในรายวิชาขณะนี้!" 
       });

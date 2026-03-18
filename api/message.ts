@@ -85,6 +85,57 @@ router.patch("/notifications/:messageID/read", (req: Request, res: Response): vo
 });
 
 
+// DELETE - ลบรายการที่ถูกเลือก
+router.delete("/notifications/batch/:uid", checkSuspended, (req: Request, res: Response): void => {
+  const uid = req.params.uid;
+  const { messageIds } = req.body;
+
+  if (!uid || !messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
+    res.status(400).json({ status: false, message: "ข้อมูลไม่ครบ" });
+    return;
+  }
+
+  const sql = "DELETE FROM message WHERE uid = ? AND id IN (?)";
+
+  conn.query(sql, [uid, messageIds], (err, result: any) => {
+    if (err) {
+      console.error(err);
+      res.status(500).json({ status: false, message: "เกิดข้อผิดพลาดในการลบข้อมูล!" });
+      return;
+    }
+
+    res.status(200).json({
+      status: true,
+      message: `ลบการแจ้งเตือน ${result.affectedRows} รายการสำเร็จ`,
+    });
+  });
+});
+
+// DELETE - ลบการแจ้งเตือนทั้งหมดของผู้ใช้
+router.delete("/notifications/all/:uid", checkSuspended, (req: Request, res: Response): void => {
+  const uid = req.params.uid;
+
+  if (!uid) {
+    res.status(400).json({ status: false, message: "ข้อมูลไม่ครบ" });
+    return;
+  }
+
+  const sql = "DELETE FROM message WHERE uid = ?";
+
+  conn.query(sql, [uid], (err, result: any) => {
+    if (err) {
+      console.error(err);
+      res.status(500).json({ status: false, message: "เกิดข้อผิดพลาดในการลบข้อมูล!" });
+      return;
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "ลบการแจ้งเตือนทั้งหมดสำเร็จ",
+    });
+  });
+});
+
 // DELETE - ลบการแจ้งเตือนทีละรายการ
 router.delete("/notifications/:messageID/:uid", checkSuspended, (req: Request, res: Response): void => {
   const messageID = req.params.messageID;
@@ -118,6 +169,30 @@ router.delete("/notifications/:messageID/:uid", checkSuspended, (req: Request, r
   });
 });
 
+// PATCH - อัปเดตสถานะเป็นอ่านแล้วทั้งหมด
+router.patch("/notifications/all/:uid/read", checkSuspended, (req: Request, res: Response): void => {
+  const uid = req.params.uid;
+
+  if (!uid) {
+    res.status(400).json({ status: false, message: "ข้อมูลไม่ครบ" });
+    return;
+  }
+
+  const sql = "UPDATE message SET is_read = 1 WHERE uid = ?";
+
+  conn.query(sql, [uid], (err, result: any) => {
+    if (err) {
+      console.error(err);
+      res.status(500).json({ status: false, message: "เกิดข้อผิดพลาดในการอัปเดตข้อมูล!" });
+      return;
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "อัปเดตสถานะการอ่านทั้งหมดสำเร็จ",
+    });
+  });
+});
 
 // GET - เช็คว่ามีการแจ้งเตือนที่ยังไม่อ่านหรือไม่
 router.get("/notifications/:uid/has-unread", (req: Request, res: Response): void => {

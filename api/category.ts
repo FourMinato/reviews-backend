@@ -97,11 +97,12 @@ router.get("/all/subject-to-edit", (req: Request, res: Response): void => {
 
 router.get("/all/subject-to-edit/:subcode", (req: Request, res: Response): void => {
   const { subcode } = req.params;
+  const searchTerm = `%${subcode}%`;
   const sql = `SELECT *
                 FROM subject
-                WHERE subcode = ?
+                WHERE subcode LIKE ? OR name LIKE ?
                 ORDER BY subcode asc`;
-  conn.query(sql, [subcode], (err, result) => {
+  conn.query(sql, [searchTerm, searchTerm], (err, result) => {
     if (err) {
 
       res.status(500).json({ status: false, message: "Database error" });

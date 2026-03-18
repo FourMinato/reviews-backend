@@ -61,8 +61,8 @@ router.get('/question/date/:uid', (req: Request, res: Response): void => {
         question.descriptions,
         users.name,
         users.profile,
-        IF(favorite_question.uid IS NOT NULL, true, false) AS is_saved
-
+        IF(favorite_question.uid IS NOT NULL, true, false) AS is_saved,
+        (SELECT COUNT(*) FROM comments WHERE comments.ref_id = question.id AND comments.type = 'question') AS comment_count
       FROM question
       INNER JOIN users ON users.uid = question.uid
       LEFT JOIN favorite_question 
@@ -114,6 +114,7 @@ router.get('/review/date/:subid/:uid?', (req: Request, res: Response): void => {
     review.is_anonymous,
     users.name,
     users.profile,
+    (SELECT COUNT(*) FROM comments WHERE comments.ref_id = review.pid AND comments.type = 'review') AS comment_count,
     (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid) AS like_count,
     ${uid ? `(SELECT COUNT(*) FROM favorite_review WHERE favorite_review.revid = review.pid AND favorite_review.uid = ?) AS is_saved,` : '0 AS is_saved,'}
     ${uid ? `(SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid AND \`like\`.uid = ?) AS is_liked` : '0 AS is_liked'}
@@ -175,6 +176,7 @@ router.get('/review/like/:subid/:uid?', (req: Request, res: Response): void => {
     review.is_anonymous,
     users.name,
     users.profile,
+    (SELECT COUNT(*) FROM comments WHERE comments.ref_id = review.pid AND comments.type = 'review') AS comment_count,
     (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid) AS like_count,
     ${uid ? `(SELECT COUNT(*) FROM favorite_review WHERE favorite_review.revid = review.pid AND favorite_review.uid = ?) AS is_saved,` : '0 AS is_saved,'}
     ${uid ? `(SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid AND \`like\`.uid = ?) AS is_liked` : '0 AS is_liked'}

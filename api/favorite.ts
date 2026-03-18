@@ -126,24 +126,42 @@ router.post("/question", checkSuspended, (req: Request, res: Response): void => 
 router.get("/review/date/:uid", (req, res) => {
   const uid = req.params.uid;
   const sql = `
-    SELECT review.pid, subject.subcode, review.date
+    SELECT 
+      review.pid, 
+      review.descriptions, 
+      review.date, 
+      review.rate, 
+      review.is_anonymous,
+      subject.subcode,
+      users.name,
+      users.profile,
+      (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid) AS like_count,
+      (SELECT COUNT(*) FROM comments WHERE comments.ref_id = review.pid AND comments.type = 'review') AS comment_count,
+      (SELECT COUNT(*) FROM favorite_review WHERE favorite_review.revid = review.pid AND favorite_review.uid = ?) AS is_saved,
+      (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid AND \`like\`.uid = ?) AS is_liked
     FROM favorite_review
     JOIN review ON favorite_review.revid = review.pid
     JOIN subject ON review.sid = subject.subid
+    JOIN users ON review.uid = users.uid
     WHERE favorite_review.uid = ?
     AND review.showpost = 1
     ORDER BY review.date DESC
   `;
   
-  conn.query(sql, [uid], (err, result) => {
+  conn.query(sql, [uid, uid, uid], (err, result: any) => {
     if (err) {
       console.error("SQL Error:", err);
       return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
     }
-    if (result.length === 0) {
-      return res.status(200).json({ status: true, data: [], message: "ยังไม่มีรีวิวที่บันทึกไว้" });
-    }
-    res.json({ status: true, data: result });
+    const processedData = result.map((review: any) => ({
+      ...review,
+      is_anonymous: Boolean(review.is_anonymous),
+      is_saved: Boolean(review.is_saved),
+      is_liked: Boolean(review.is_liked),
+      name: review.is_anonymous ? 'ผู้โพสต์ไม่ระบุตัวตน' : review.name,
+      profile: review.is_anonymous ? 'a25d9385-c882-4b3d-aa5b-508eabcd5987.png' : review.profile
+    }));
+    res.json({ status: true, data: processedData });
   });
 });
 
@@ -151,24 +169,42 @@ router.get("/review/date/:uid", (req, res) => {
 router.get("/review/subcode/:uid", (req, res) => {
   const uid = req.params.uid;
   const sql = `
-    SELECT review.pid, subject.subcode, review.date
+    SELECT 
+      review.pid, 
+      review.descriptions, 
+      review.date, 
+      review.rate, 
+      review.is_anonymous,
+      subject.subcode,
+      users.name,
+      users.profile,
+      (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid) AS like_count,
+      (SELECT COUNT(*) FROM comments WHERE comments.ref_id = review.pid AND comments.type = 'review') AS comment_count,
+      (SELECT COUNT(*) FROM favorite_review WHERE favorite_review.revid = review.pid AND favorite_review.uid = ?) AS is_saved,
+      (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid AND \`like\`.uid = ?) AS is_liked
     FROM favorite_review
     JOIN review ON favorite_review.revid = review.pid
     JOIN subject ON review.sid = subject.subid
+    JOIN users ON review.uid = users.uid
     WHERE favorite_review.uid = ?
     AND review.showpost = 1
     ORDER BY subject.subcode ASC
   `;
   
-  conn.query(sql, [uid], (err, result) => {
+  conn.query(sql, [uid, uid, uid], (err, result: any) => {
     if (err) {
       console.error("SQL Error:", err);
       return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
     }
-    if (result.length === 0) {
-      return res.status(200).json({ status: true, data: [], message: "ยังไม่มีรีวิวที่บันทึกไว้" });
-    }
-    res.json({ status: true, data: result });
+    const processedData = result.map((review: any) => ({
+      ...review,
+      is_anonymous: Boolean(review.is_anonymous),
+      is_saved: Boolean(review.is_saved),
+      is_liked: Boolean(review.is_liked),
+      name: review.is_anonymous ? 'ผู้โพสต์ไม่ระบุตัวตน' : review.name,
+      profile: review.is_anonymous ? 'a25d9385-c882-4b3d-aa5b-508eabcd5987.png' : review.profile
+    }));
+    res.json({ status: true, data: processedData });
   });
 });
 
@@ -176,21 +212,26 @@ router.get("/review/subcode/:uid", (req, res) => {
 router.get("/question/:uid", (req, res) => {
   const uid = req.params.uid;
   const sql = `
-    SELECT question.id, question.date, users.name
+    SELECT 
+      question.id, 
+      question.descriptions, 
+      question.date, 
+      users.name, 
+      users.profile,
+      (SELECT COUNT(*) FROM comments WHERE comments.ref_id = question.id AND comments.type = 'question') AS comment_count,
+      true AS is_saved
     FROM favorite_question
     JOIN question ON favorite_question.pid = question.id
     JOIN users ON question.uid = users.uid
     WHERE favorite_question.uid = ?
     AND question.open = 1
+    ORDER BY question.date DESC
   `;
   
   conn.query(sql, [uid], (err, result) => {
     if (err) {
       console.error("SQL Error:", err);
       return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-    }
-    if (result.length === 0) {
-      return res.status(200).json({ status: true, data: [], message: "ยังไม่มีคำถามที่บันทึกไว้" });
     }
     res.json({ status: true, data: result });
   });

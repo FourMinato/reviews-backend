@@ -19,11 +19,6 @@ export const checkSuspended = (req: Request, res: Response, next: NextFunction):
     || req.params.userId
     || req.body.uid 
     || req.headers['x-uid'] as string;
-      console.log('checkSuspended uid:', uid); // ดูว่าได้ uid มาไหม
-  console.log('params:', req.params);
-  console.log('body:', req.body);
-  console.log('headers x-uid:', req.headers['x-uid']);
-
   if (!uid) return next(); // ถ้าไม่มี uid เลยให้ผ่าน
 
   conn.query(`SELECT type FROM users WHERE uid = ?`, [uid], (err, result: any) => {
@@ -41,7 +36,8 @@ router.use(checkSuspended);
 
 //Web REgister.
 router.post("/register", (req: Request, res: Response) => {
-  const { name, email, password, anonymous_name, type } = req.body;
+  const { name, email, password, anonymous_name } = req.body;
+  const type = 0; // Default role: 0 = User
 
   if (!name || !email || !password) {
    res.status(400).json({ status: false, message: "กรุณากรอกข้อมูลให้ครบ" });
@@ -234,12 +230,11 @@ router.post("/request-otp", async (req: Request, res: Response): Promise<void> =
       }
     }
 
-    // 2. Generate + Hash OTP
+    // 2. Generate OTP
     const otp = otpService.generateOtp();
-    const hashedOtp = await bcrypt.hash(otp, 10);
 
     // 3. บันทึกลง DB
-    await otpService.saveOtp(email, hashedOtp);
+    await otpService.saveOtp(email, otp);
 
     // 4. ส่งอีเมล
     await otpService.sendOtpEmail(email, otp);
@@ -288,7 +283,7 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
     }
 
     // เทียบ OTP
-    const isMatch = await bcrypt.compare(otp, otp_code);
+    const isMatch = (otp === otp_code);
     if (!isMatch) {
       res.status(400).json({ status: false, message: "OTP ไม่ถูกต้อง" });
       return;
@@ -481,42 +476,60 @@ router.put("/update-user/:uid",checkSuspended, async  (req: Request, res: Respon
 
 
 // Get other user Reviews.
-  router.get("/getuser/review/:uid", (req, res) => {
-      const uid = req.params.uid;
-      const sql = `SELECT review.pid, subject.subcode, review.date
+  router.get("/getuser/review/:uid/:viewerUid?", (req, res) => {
+      const { uid, viewerUid } = req.params;
+      const sql = `
+      SELECT 
+        review.pid, 
+        review.descriptions, 
+        review.date, 
+        review.rate, 
+        review.is_anonymous,
+        subject.subcode,
+        users.name,
+        users.profile,
+        (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid) AS like_count,
+        (SELECT COUNT(*) FROM comments WHERE comments.ref_id = review.pid AND comments.type = 'review') AS comment_count,
+        (SELECT COUNT(*) FROM favorite_review WHERE favorite_review.revid = review.pid AND favorite_review.uid = ?) AS is_saved,
+        (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid AND \`like\`.uid = ?) AS is_liked
       FROM review
-      JOIN subject
+      JOIN subject ON review.sid = subject.subid
+      JOIN users ON review.uid = users.uid
       WHERE review.sid = subject.subid
       AND review.showpost = 1
       AND review.is_anonymous = 0
-      AND review.uid = ?`;
-      conn.query(sql, [uid], (err, result) => {
+      AND review.uid = ?
+      ORDER BY review.date DESC`;
+      conn.query(sql, [viewerUid || 0, viewerUid || 0, uid], (err, result: any) => {
         if (err) {
           console.error("SQL Error:", err);
           return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-        }
-        if (result.length === 0) {
-          return res.status(200).json({ status: true, data: [], message: "ผู้ใช้คนนี้ไม่เคยรีวิวรายวิชา" });
         }
         res.json({ status: true, data: result });
       });
   });
 
 // Get other user Questions.
-  router.get("/getuser/question/:uid", (req, res) => {
-      const uid = req.params.uid;
-      const sql = `SELECT question.id, question.date
+  router.get("/getuser/question/:uid/:viewerUid?", (req, res) => {
+      const { uid, viewerUid } = req.params;
+      const sql = `
+      SELECT 
+        question.id, 
+        question.descriptions, 
+        question.date, 
+        users.name, 
+        users.profile,
+        (SELECT COUNT(*) FROM comments WHERE comments.ref_id = question.id AND comments.type = 'question') AS comment_count,
+        (SELECT COUNT(*) FROM favorite_question WHERE favorite_question.pid = question.id AND favorite_question.uid = ?) AS is_saved
       FROM question
+      JOIN users ON question.uid = users.uid
       WHERE question.uid = ?
       AND question.open = 1
       ORDER BY question.date DESC`;
-      conn.query(sql, [uid], (err, result) => {
+      conn.query(sql, [viewerUid || 0, uid], (err, result) => {
         if (err) {
           console.error("SQL Error:", err);
           return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-        }
-        if (result.length === 0) {
-          return res.status(200).json({ status: true, data: [], message: "ผู้ใช้คนนี้ไม่เคยโพสต์คำถาม" });
         }
         res.json({ status: true, data: result });
       });
@@ -545,40 +558,84 @@ router.get("/myprofile/:uid", (req, res) => {
   // Get my review.
   router.get("/getmyreview/:uid", (req, res) => {
       const uid = req.params.uid;
-      const sql = `SELECT review.pid, subject.subcode, review.date
+      const sql = `
+      SELECT 
+        review.pid, 
+        review.descriptions, 
+        review.date, 
+        review.rate, 
+        review.is_anonymous,
+        subject.subcode,
+        users.name,
+        users.profile,
+        (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid) AS like_count,
+        (SELECT COUNT(*) FROM comments WHERE comments.ref_id = review.pid AND comments.type = 'review') AS comment_count,
+        (SELECT COUNT(*) FROM favorite_review WHERE favorite_review.revid = review.pid AND favorite_review.uid = ?) AS is_saved,
+        (SELECT COUNT(*) FROM \`like\` WHERE \`like\`.pid = review.pid AND \`like\`.uid = ?) AS is_liked
       FROM review
-      JOIN subject
-      WHERE review.sid = subject.subid
-      AND review.showpost = 1
-      AND review.uid = ?`;
-      conn.query(sql, [uid], (err, result) => {
+      JOIN subject ON review.sid = subject.subid
+      JOIN users ON review.uid = users.uid
+      WHERE review.showpost = 1
+      AND review.uid = ?
+      ORDER BY review.date DESC`;
+      conn.query(sql, [uid, uid, uid], (err, result: any) => {
         if (err) {
           console.error("SQL Error:", err);
           return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
         }
-        if (result.length === 0) {
-          return res.status(200).json({ status: true, data: [], message: "ผู้ใช้คนนี้ไม่เคยรีวิวรายวิชา" });
-        }
-        res.json({ status: true, data: result });
+        const processedData = result.map((review: any) => ({
+          ...review,
+          is_anonymous: Boolean(review.is_anonymous),
+          is_saved: Boolean(review.is_saved),
+          is_liked: Boolean(review.is_liked),
+          name: review.is_anonymous ? 'ผู้โพสต์ไม่ระบุตัวตน' : review.name,
+          profile: review.is_anonymous ? 'a25d9385-c882-4b3d-aa5b-508eabcd5987.png' : review.profile
+        }));
+        res.json({ status: true, data: processedData });
       });
   });
 // Get my question.
     router.get("/getmyquestion/:uid", (req, res) => {
       const uid = req.params.uid;
-      const sql = `SELECT question.id, question.date
+      const sql = `
+      SELECT 
+        question.id, 
+        question.descriptions, 
+        question.date, 
+        users.name, 
+        users.profile,
+        (SELECT COUNT(*) FROM comments WHERE comments.ref_id = question.id AND comments.type = 'question') AS comment_count,
+        (SELECT COUNT(*) FROM favorite_question WHERE favorite_question.pid = question.id AND favorite_question.uid = ?) AS is_saved
       FROM question
-      WHERE question.uid = ?`;
-      conn.query(sql, [uid], (err, result) => {
+      JOIN users ON question.uid = users.uid
+      WHERE question.uid = ?
+      ORDER BY question.date DESC`;
+      conn.query(sql, [uid, uid], (err, result) => {
         if (err) {
           console.error("SQL Error:", err);
           return res.status(500).json({ status: false, message: "เกิดข้อผิดพลาด" });
-        }
-        if (result.length === 0) {
-          return res.status(200).json({ status: true, data: [], message: "ผู้ใช้คนนี้ไม่เคยรีวิวรายวิชา" });
         }
         res.json({ status: true, data: result });
       });
   });
 
   
+
+// Contact Email
+router.post("/contact-email", async (req: Request, res: Response): Promise<void> => {
+  const { name, email, subject, message } = req.body;
+
+  if (!name || !email || !subject || !message) {
+    res.status(400).json({ status: false, message: "กรุณากรอกข้อมูลให้ครบทุกช่อง" });
+    return;
+  }
+
+  try {
+    await otpService.sendContactEmail(email, name, subject, message);
+    res.json({ status: true, message: "ส่งข้อความสำเร็จแล้ว ทีมงานจะติดต่อกลับโดยเร็วที่สุด" });
+  } catch (error) {
+    console.error("Contact Email Error:", error);
+    res.status(500).json({ status: false, message: "เกิดข้อผิดพลาดในการส่งอีเมล" });
+  }
+});
 

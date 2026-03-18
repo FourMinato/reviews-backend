@@ -59,7 +59,7 @@ router.post("/register/google", async (req: Request, res: Response): Promise<voi
                     anonymousName = defaultName[0] + '*';
                 }
                 const profile = "1e346a4b-7fb4-4f94-929d-9093df91ce85.jpg";
-                const type = 1;
+                const type = 0;
                 conn.query(
                     `INSERT INTO users (name, email, google_id, anonymous_name, profile, type)
                     VALUES (?,?,?,?,?,?)`,

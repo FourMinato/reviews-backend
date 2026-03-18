@@ -99,4 +99,33 @@ await transporter.sendMail({
   `,
 });
   }
+
+  async sendContactEmail(fromEmail: string, name: string, subject: string, message: string): Promise<void> {
+    const transporter = nodemailer.createTransport({
+      host: process.env.MAIL_HOST,
+      port: Number(process.env.MAIL_PORT),
+      secure: false,
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"Contact Form" <${process.env.MAIL_USER}>`,
+      to: 'nightnicec@gmail.com',
+      subject: `[Contact Form] ${subject}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; color: #333; line-height: 1.6;">
+          <h2 style="color: #4F46E5;">ข้อความติดต่อใหม่จากเว็บไซต์</h2>
+          <p><strong>ชื่อผู้ส่ง:</strong> ${name}</p>
+          <p><strong>อีเมลผู้ส่ง:</strong> ${fromEmail}</p>
+          <p><strong>หัวข้อ:</strong> ${subject}</p>
+          <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-left: 4px solid #4F46E5;">
+            <p style="white-space: pre-wrap; margin: 0;">${message}</p>
+          </div>
+        </div>
+      `,
+    });
+  }
 }

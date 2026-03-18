@@ -139,12 +139,14 @@ router.get('/subject/search/:subcode', (req, res) => {
         return;
     }
 
+    const searchTerm = `%${subcode}%`;
+
     conn.query(`SELECT s.*,
                 (SELECT COUNT(*) FROM review WHERE sid=s.subid AND showpost=1) review_count,
                 (SELECT ROUND(IFNULL(AVG(rate), 0), 1) FROM review WHERE sid = s.subid AND showpost = 1) AS avg_rate
                 FROM subject s
-                WHERE subcode=?
-              `, [subcode], (err, result: any[]) => {
+                WHERE subcode LIKE ? OR name LIKE ?
+              `, [searchTerm, searchTerm], (err, result: any[]) => {
         if (err) {
             res.status(500).json({ status: false, message: "เกิดข้อผิดพลาดในระบบ" });
             return;
