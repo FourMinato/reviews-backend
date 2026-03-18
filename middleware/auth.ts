@@ -3,10 +3,7 @@ import { conn } from "../db";
 
 // Middleware to check if the user is suspended (Type 2)
 export const checkSuspended = (req: Request, res: Response, next: NextFunction): void => {
-  const uid = req.params.uid
-    || req.params.userId
-    || req.body.uid
-    || req.headers['x-uid'] as string;
+  const uid = req.headers['x-uid'] as string || req.body.uid;
 
   if (!uid) return next();
 
@@ -23,10 +20,7 @@ export const checkSuspended = (req: Request, res: Response, next: NextFunction):
 
 // Middleware to check if the user is an admin (Type 1)
 export const checkAdmin = (req: Request, res: Response, next: NextFunction): void => {
-  const uid = req.params.uid
-    || req.params.userId
-    || req.body.uid
-    || req.headers['x-uid'] as string;
+  const uid = req.headers['x-uid'] as string || req.body.uid;
 
   if (!uid) {
     res.status(401).json({ status: false, message: "กรุณาเข้าสู่ระบบ" });
