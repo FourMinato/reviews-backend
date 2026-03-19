@@ -19,7 +19,12 @@ export class OtpService {
       SET otp_code = ?, otp_expires_at = DATE_ADD(NOW(), INTERVAL 5 MINUTE), otp_requested_at = NOW() 
       WHERE email = ?
     `;
-    await conn.query(updateOtp, [otp, email]);
+    return new Promise((resolve, reject) => {
+      conn.query(updateOtp, [otp, email], (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
   }
 
   async sendOtpEmail(email: string, otp: string): Promise<void> {
