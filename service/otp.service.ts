@@ -15,14 +15,19 @@ export class OtpService {
       SET otp_code = ?, otp_expires_at = DATE_ADD(NOW(), INTERVAL 5 MINUTE), otp_requested_at = NOW() 
       WHERE email = ?
     `;
-    await conn.query(updateOtp, [otp, email]);
+    return new Promise((resolve, reject) => {
+      conn.query(updateOtp, [otp, email], (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
   }
 
   async sendOtpEmail(email: string, otp: string): Promise<void> {
     const transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
       port: Number(process.env.MAIL_PORT),
-      secure: false,
+      secure: Number(process.env.MAIL_PORT) === 465,
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
@@ -101,7 +106,7 @@ await transporter.sendMail({
     const transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
       port: Number(process.env.MAIL_PORT),
-      secure: false,
+      secure: Number(process.env.MAIL_PORT) === 465,
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
