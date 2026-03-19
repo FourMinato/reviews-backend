@@ -2,6 +2,10 @@ import crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
 import { conn } from '../db';
+import * as dns from 'dns';
+
+// Force Node.js to use IPv4 first for DNS resolution (fixes nodemailer hanging on Render with Node 17+)
+dns.setDefaultResultOrder('ipv4first');
 
 export class OtpService {
 
@@ -15,19 +19,17 @@ export class OtpService {
       SET otp_code = ?, otp_expires_at = DATE_ADD(NOW(), INTERVAL 5 MINUTE), otp_requested_at = NOW() 
       WHERE email = ?
     `;
-    return new Promise((resolve, reject) => {
-      conn.query(updateOtp, [otp, email], (err) => {
-        if (err) return reject(err);
-        resolve();
-      });
-    });
+    await conn.query(updateOtp, [otp, email]);
   }
 
   async sendOtpEmail(email: string, otp: string): Promise<void> {
     const transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
       port: Number(process.env.MAIL_PORT),
-      secure: Number(process.env.MAIL_PORT) === 465,
+      secure: process.env.MAIL_PORT === '465',
+      connectionTimeout: 10000, // 10 seconds timeout
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
