@@ -202,7 +202,7 @@ router.post("/request-otp", async (req: Request, res: Response): Promise<void> =
     const lastRequest = result[0].otp_requested_at;
     if (lastRequest) {
       const diff = (Date.now() - new Date(lastRequest).getTime()) / 1000;
-      if (diff < 60) {
+      if (diff >= 0 && diff < 60) {
         res.status(429).json({
           status: false,
           message: `กรุณารอ ${Math.ceil(60 - diff)} วินาที`
