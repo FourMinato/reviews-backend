@@ -9,16 +9,13 @@ export class OtpService {
     return crypto.randomInt(100000, 999999).toString();
   }
 
-  async saveOtp(email: string, hashedOtp: string): Promise<void> {
-    const now = new Date();
-    const expires = new Date(now.getTime() + 5 * 60 * 1000);
-
+  async saveOtp(email: string, otp: string): Promise<void> {
     const updateOtp = `
       UPDATE users 
-      SET otp_code = ?, otp_expires_at = ?, otp_requested_at = ? 
+      SET otp_code = ?, otp_expires_at = DATE_ADD(NOW(), INTERVAL 5 MINUTE), otp_requested_at = NOW() 
       WHERE email = ?
     `;
-    await conn.query(updateOtp, [hashedOtp, expires, now, email]);
+    await conn.query(updateOtp, [otp, email]);
   }
 
   async sendOtpEmail(email: string, otp: string): Promise<void> {

@@ -185,7 +185,7 @@ router.post("/request-otp", async (req: Request, res: Response): Promise<void> =
     // 1. เช็ค rate limit
     const result: any = await new Promise((resolve, reject) => {
       conn.query(
-        "SELECT otp_requested_at FROM users WHERE email = ?",
+        "SELECT TIMESTAMPDIFF(SECOND, otp_requested_at, NOW()) AS diff_seconds FROM users WHERE email = ?",
         [email],
         (err, result) => {
           if (err) return reject(err);
@@ -199,16 +199,13 @@ router.post("/request-otp", async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const lastRequest = result[0].otp_requested_at;
-    if (lastRequest) {
-      const diff = (Date.now() - new Date(lastRequest).getTime()) / 1000;
-      if (diff >= 0 && diff < 60) {
-        res.status(429).json({
-          status: false,
-          message: `กรุณารอ ${Math.ceil(60 - diff)} วินาที`
-        });
-        return;
-      }
+    const diff_seconds = result[0].diff_seconds;
+    if (diff_seconds !== null && diff_seconds >= 0 && diff_seconds < 60) {
+      res.status(429).json({
+        status: false,
+        message: `กรุณารอ ${Math.ceil(60 - diff_seconds)} วินาที`
+      });
+      return;
     }
 
     // 2. Generate OTP
@@ -241,7 +238,7 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
   try {
     const result: any = await new Promise((resolve, reject) => {
       conn.query(
-        "SELECT otp_code, otp_expires_at FROM users WHERE email = ?",
+        "SELECT otp_code, NOW() > otp_expires_at AS is_expired FROM users WHERE email = ?",
         [email],
         (err, result) => {
           if (err) return reject(err);
@@ -255,10 +252,10 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const { otp_code, otp_expires_at } = result[0];
+    const { otp_code, is_expired } = result[0];
 
     // เช็คหมดอายุ
-    if (!otp_code || new Date() > new Date(otp_expires_at)) {
+    if (!otp_code || is_expired) {
       res.status(400).json({ status: false, message: "OTP หมดอายุแล้ว กรุณาขอใหม่" });
       return;
     }
